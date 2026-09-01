@@ -14,7 +14,7 @@ export default function DocumentList({ documents, isLoading }) {
   }
 
   if (documents.length === 0) {
-    return <p className="status-message">Nenhum documento enviado.</p>;
+    return <p className="status-message">Nenhum documento enviado</p>;
   }
 
   return (
