@@ -33,6 +33,12 @@ function createDocumentService(documentRepository) {
       return documentRepository.findAll().map(toPublicDocument);
     },
 
+    async discardUploadedFile(file) {
+      if (file?.path) {
+        await documentRepository.removeFile(file.path);
+      }
+    },
+
     async getDocumentForDownload(id) {
       const document = documentRepository.findById(id);
 

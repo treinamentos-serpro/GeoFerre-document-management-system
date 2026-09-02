@@ -1,6 +1,6 @@
 function createDocumentController(documentService) {
   return {
-    uploadDocument(request, response) {
+    async uploadDocument(request, response) {
       const owner = request.body.owner?.trim();
 
       if (!request.file) {
@@ -8,6 +8,7 @@ function createDocumentController(documentService) {
       }
 
       if (!owner) {
+        await documentService.discardUploadedFile(request.file);
         return response.status(400).json({ error: 'Informe o proprietário do documento.' });
       }
 

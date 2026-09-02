@@ -26,6 +26,10 @@ function createDocumentRepository() {
         return false;
       }
     },
+
+    async removeFile(filePath) {
+      await fs.unlink(filePath);
+    },
   };
 }
 

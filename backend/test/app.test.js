@@ -10,11 +10,18 @@ const storageDirectory = path.join(
 );
 
 process.env.DOCUMENT_STORAGE_DIR = storageDirectory;
+process.env.DOCUMENT_MAX_FILE_SIZE_BYTES = '64';
+process.env.DOCUMENT_MAX_FIELD_SIZE_BYTES = '16';
 
 const app = require('../src/app');
 
 let server;
 let baseUrl;
+
+async function listStoredFiles() {
+  const entries = await fs.readdir(storageDirectory);
+  return entries.filter((entry) => entry !== '.gitkeep');
+}
 
 before(async () => {
   await fs.mkdir(storageDirectory, { recursive: true });
@@ -85,7 +92,12 @@ test('rejeita upload sem arquivo ou proprietário', async () => {
   });
 
   const withoutOwner = new FormData();
-  withoutOwner.append('file', new Blob(['conteúdo']), 'arquivo.txt');
+  withoutOwner.append(
+    'file',
+    new Blob(['conteúdo'], { type: 'text/plain' }),
+    'arquivo.txt'
+  );
+  const filesBeforeRequest = await listStoredFiles();
 
   const withoutOwnerResponse = await fetch(`${baseUrl}/upload`, {
     method: 'POST',
@@ -95,6 +107,83 @@ test('rejeita upload sem arquivo ou proprietário', async () => {
   assert.deepStrictEqual(await withoutOwnerResponse.json(), {
     error: 'Informe o proprietário do documento.',
   });
+  assert.deepStrictEqual(await listStoredFiles(), filesBeforeRequest);
+});
+
+test('rejeita arquivo acima do tamanho permitido sem persistir conteúdo parcial', async () => {
+  const formData = new FormData();
+  formData.append('owner', 'user-123');
+  formData.append(
+    'file',
+    new Blob(['x'.repeat(65)], {
+      type: 'text/plain',
+    }),
+    'grande.txt'
+  );
+  const filesBeforeRequest = await listStoredFiles();
+
+  const response = await fetch(`${baseUrl}/upload`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  assert.strictEqual(response.status, 413);
+  assert.deepStrictEqual(await response.json(), {
+    error: 'O arquivo excede o tamanho máximo permitido.',
+  });
+  assert.deepStrictEqual(await listStoredFiles(), filesBeforeRequest);
+});
+
+test('rejeita proprietário acima do limite sem persistir arquivo', async () => {
+  const formData = new FormData();
+  formData.append('owner', 'x'.repeat(17));
+  formData.append(
+    'file',
+    new Blob(['conteúdo'], { type: 'text/plain' }),
+    'arquivo.txt'
+  );
+  const filesBeforeRequest = await listStoredFiles();
+
+  const response = await fetch(`${baseUrl}/upload`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  assert.strictEqual(response.status, 400);
+  assert.deepStrictEqual(await response.json(), {
+    error: 'Um campo de texto excede o tamanho máximo permitido.',
+  });
+  assert.deepStrictEqual(await listStoredFiles(), filesBeforeRequest);
+});
+
+test('rejeita tipo de arquivo não permitido', async () => {
+  const formData = new FormData();
+  formData.append('owner', 'user-123');
+  formData.append(
+    'file',
+    new Blob(['executável'], { type: 'application/x-msdownload' }),
+    'arquivo.exe'
+  );
+  const filesBeforeRequest = await listStoredFiles();
+
+  const response = await fetch(`${baseUrl}/upload`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  assert.strictEqual(response.status, 415);
+  assert.deepStrictEqual(await response.json(), {
+    error: 'O tipo de arquivo enviado não é permitido.',
+  });
+  assert.deepStrictEqual(await listStoredFiles(), filesBeforeRequest);
+});
+
+test('inclui cabeçalhos básicos de segurança', async () => {
+  const response = await fetch(`${baseUrl}/health`);
+
+  assert.strictEqual(response.headers.get('x-powered-by'), null);
+  assert.strictEqual(response.headers.get('x-content-type-options'), 'nosniff');
+  assert.strictEqual(response.headers.get('x-frame-options'), 'DENY');
 });
 
 test('informa quando o documento não existe para download', async () => {

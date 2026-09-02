@@ -20,7 +20,6 @@ localmente pela aplicação.
 - Versionamento, edição ou exclusão de documentos.
 - Autenticação e autorização de usuários.
 - Persistência durável dos metadados.
-- Limites de tamanho e restrição de tipos de arquivo.
 
 ## 3. Requisitos funcionais
 
@@ -32,6 +31,7 @@ localmente pela aplicação.
 | RF-04 | O usuário pode listar os metadados públicos de todos os documentos enviados enquanto a aplicação estiver em execução. |
 | RF-05 | O usuário pode baixar um documento existente pelo seu identificador. |
 | RF-06 | O sistema deve informar erro para upload sem arquivo, upload sem proprietário ou download de documento inexistente. |
+| RF-07 | O sistema deve aceitar somente documentos PDF, TXT, PNG, JPEG, DOC e DOCX. |
 
 ## 4. Requisitos não funcionais
 
@@ -43,6 +43,8 @@ localmente pela aplicação.
 | RNF-04 | A porta do backend deve ser configurável por `PORT`, com padrão `3000`. |
 | RNF-05 | Nenhum provedor de armazenamento externo ou serviço de upload de terceiros deve ser utilizado. |
 | RNF-06 | Erros de entrada devem ser retornados em JSON com uma mensagem em português. |
+| RNF-07 | O tamanho máximo do arquivo deve ser configurável por `DOCUMENT_MAX_FILE_SIZE_BYTES`, com padrão de 10 MB. |
+| RNF-08 | Campos multipart devem ser limitados a um campo textual `owner`, com até 256 bytes por padrão; `DOCUMENT_MAX_FIELD_SIZE_BYTES` pode ajustar esse limite. |
 
 ## 5. Modelo de dados
 
@@ -74,7 +76,9 @@ ao encaminhar a requisição ao backend.
   `owner` (texto obrigatório).
 - **Sucesso:** `201 Created` com os metadados públicos do documento.
 - **Erros:** `400 Bad Request` quando `file` ou `owner` estiver ausente ou
-  inválido; `500 Internal Server Error` para erro inesperado de armazenamento.
+  inválido, inclusive campo textual acima do limite; `413 Payload Too Large`
+  quando o arquivo exceder o limite; `415 Unsupported Media Type` para tipo não
+  permitido; `500 Internal Server Error` para erro inesperado de armazenamento.
 
 ```json
 {
@@ -125,8 +129,9 @@ O frontend usa componentes funcionais React e um serviço único baseado em
 1. Criar o repositório em memória para metadados e a verificação de arquivos locais.
 2. Criar o serviço de documentos para cadastro, consulta e recuperação para download.
 3. Criar controlador e rotas Express, configurando `multer.diskStorage` para o diretório local.
-4. Compor as dependências no `app` e padronizar os erros HTTP.
-5. Cobrir upload, listagem, download, validação de entrada e documento inexistente com testes de integração do Node.
-6. Criar o serviço do frontend para chamadas por `/api`.
-7. Construir os componentes de upload, lista e download e integrá-los em uma página de gestão.
-8. Validar os testes do backend e a build de produção do frontend.
+4. Configurar os limites multipart e a política de tipos permitidos no upload.
+5. Compor as dependências no `app` e padronizar os erros HTTP e cabeçalhos de segurança.
+6. Cobrir upload, listagem, download, validação de entrada, documento inexistente e limites de segurança com testes de integração do Node.
+7. Criar o serviço do frontend para chamadas por `/api`.
+8. Construir os componentes de upload, lista e download e integrá-los em uma página de gestão.
+9. Validar testes, build de produção e auditorias de dependências na CI.
